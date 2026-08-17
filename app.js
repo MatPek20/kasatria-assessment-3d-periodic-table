@@ -3,6 +3,7 @@
  * Primary Developer & Editor: AHMAD AMIRUL FAIZ BIN NAZRI
  */
 
+// Data endpoint and Google OAuth Client ID
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/1SpgizARxdeoAL3veuniJwGDodgLrLmqcQcTRp-I6uHU/export?format=csv';
 const CLIENT_ID = '881789713644-42g9l58hv737vlupjqj15bf4e3u190tk.apps.googleusercontent.com';
 
@@ -11,6 +12,7 @@ let tokenClient;
 const objects = [];
 const targets = { table: [], sphere: [], helix: [], grid: [], tetrahedron: [] };
 
+// Initialize Google Identity Services OAuth client
 window.onload = function () {
     if (window.google && google.accounts && google.accounts.oauth2) {
         tokenClient = google.accounts.oauth2.initTokenClient({
@@ -40,6 +42,7 @@ function triggerGoogleLogin() {
     }
 }
 
+// Fetch and parse spreadsheet CSV data Kasatria Candidate Data
 function loadDataAndInit() {
     Papa.parse(CSV_URL, {
         download: true,
@@ -65,6 +68,7 @@ function loadDataAndInit() {
     });
 }
 
+// Build 3D DOM cards and register layout switchers
 function init(data) {
     camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
     camera.position.z = 3000;
@@ -81,6 +85,7 @@ function init(data) {
         const element = document.createElement('div');
         element.className = 'element';
 
+        // Color coding by net worth tiers
         if (netWorthNum < 100000) {
             element.style.backgroundColor = 'rgba(239, 48, 34, 0.75)';
         } else if (netWorthNum <= 200000) {
@@ -104,6 +109,7 @@ function init(data) {
         objects.push(object);
     }
 
+    // Precalculate target coordinates for all 5 layouts
     buildTableLayout(data.length);
     buildSphereLayout(data.length);
     buildDoubleHelixLayout(data.length);
@@ -123,6 +129,7 @@ function init(data) {
 
     transform(targets.table, 2000);
 
+    // Attach click listeners for layout buttons
     const safeBind = (id, target) => {
         const btn = document.getElementById(id);
         if (btn) {
@@ -139,6 +146,7 @@ function init(data) {
     window.addEventListener('resize', onWindowResize);
 }
 
+// 2D Periodic Table Grid
 function buildTableLayout(count) {
     const COLS = 20;
     for (let i = 0; i < count; i++) {
@@ -154,6 +162,7 @@ function buildTableLayout(count) {
     }
 }
 
+// Fibonacci spherical distribution
 function buildSphereLayout(count) {
     const vector = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
@@ -170,6 +179,7 @@ function buildSphereLayout(count) {
     }
 }
 
+// Double-helix DNA cylindrical layout
 function buildDoubleHelixLayout(count) {
     const vector = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
@@ -190,6 +200,7 @@ function buildDoubleHelixLayout(count) {
     }
 }
 
+// 3D Cube Grid layout
 function buildGridLayout(count) {
     const X_SIZE = 5;
     const Y_SIZE = 4;
@@ -217,46 +228,43 @@ function buildTetrahedronLayout(count) {
 
     // 4 Vertices of a regular tetrahedron centered at origin
     const vertices = [
-        new THREE.Vector3(0, scale, 0),                                       // Top Apex
-        new THREE.Vector3(-scale, -scale * 0.6, scale * 0.8),                 // Front Left
-        new THREE.Vector3(scale, -scale * 0.6, scale * 0.8),                  // Front Right
-        new THREE.Vector3(0, -scale * 0.6, -scale * 1.2)                      // Back Center
+        new THREE.Vector3(0, scale, 0),                                       
+        new THREE.Vector3(-scale, -scale * 0.6, scale * 0.8),                
+        new THREE.Vector3(scale, -scale * 0.6, scale * 0.8),                  
+        new THREE.Vector3(0, -scale * 0.6, -scale * 1.2)                      
     ];
 
     // 4 Triangular Faces
     const faces = [
-        [vertices[0], vertices[1], vertices[2]], // Front Face
-        [vertices[0], vertices[2], vertices[3]], // Right Face
-        [vertices[0], vertices[3], vertices[1]], // Left Face
-        [vertices[1], vertices[3], vertices[2]]  // Base / Bottom
+        [vertices[0], vertices[1], vertices[2]], 
+        [vertices[0], vertices[2], vertices[3]],
+        [vertices[0], vertices[3], vertices[1]], 
+        [vertices[1], vertices[3], vertices[2]] 
     ];
 
-    const cardsPerFace = Math.ceil(count / 4); // 50 cards per face
+    const cardsPerFace = Math.ceil(count / 4);
 
     for (let i = 0; i < count; i++) {
         const faceIndex = Math.floor(i / cardsPerFace);
         const face = faces[faceIndex];
         const cardIndex = i % cardsPerFace;
 
-        // Triangular grid distribution (10 rows: 1, 2, 3... 10 cards)
         const row = Math.floor((-1 + Math.sqrt(1 + 8 * cardIndex)) / 2);
         const col = cardIndex - (row * (row + 1)) / 2;
         const totalRows = 9;
 
-        // Normalized Barycentric coordinates ensuring points stay inside the triangle
         const r = totalRows > 0 ? row / totalRows : 0;
         const c = row > 0 ? col / row : 0;
 
-        const w0 = 1 - r;            // Weight for apex
-        const w1 = r * (1 - c);       // Weight for corner 1
-        const w2 = r * c;             // Weight for corner 2
+        const w0 = 1 - r;            
+        const w1 = r * (1 - c);       
+        const w2 = r * c;             
 
         const position = new THREE.Vector3()
             .addScaledVector(face[0], w0)
             .addScaledVector(face[1], w1)
             .addScaledVector(face[2], w2);
 
-        // Calculate face normal vector pointing outwards
         const edge1 = new THREE.Vector3().subVectors(face[1], face[0]);
         const edge2 = new THREE.Vector3().subVectors(face[2], face[0]);
         const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
@@ -269,7 +277,6 @@ function buildTetrahedronLayout(count) {
         const object = new THREE.Object3D();
         object.position.copy(position);
 
-        // Orient card outwards facing the camera
         vector.addVectors(position, normal);
         object.lookAt(vector);
 
@@ -277,6 +284,7 @@ function buildTetrahedronLayout(count) {
     }
 }
 
+// Animate objects to target layout using Tween.js
 function transform(targetArray, duration) {
     TWEEN.removeAll();
 
