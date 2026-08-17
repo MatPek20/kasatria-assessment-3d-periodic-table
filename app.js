@@ -222,66 +222,59 @@ function buildGridLayout(count) {
 }
 
 // 5. 3D Pyramid (Tetrahedron) Layout
+// 5. Clean 4-Sided Stepped Pyramid Layout
 function buildTetrahedronLayout(count) {
-    const scale = 1400;
-    const cardsPerFace = Math.ceil(count / 4);
-
-    // 4 Vertices of a regular tetrahedron
-    const v0 = new THREE.Vector3(0, scale, 0);                                      
-    const v1 = new THREE.Vector3(-scale, -scale * 0.5, scale * 0.866);              
-    const v2 = new THREE.Vector3(scale, -scale * 0.5, scale * 0.866);               
-    const v3 = new THREE.Vector3(0, -scale * 0.5, -scale * 1.155);                  
-
-    // 4 Triangular Faces defined by vertex triplets
-    const faces = [
-        [v0, v1, v2], 
-        [v0, v2, v3], 
-        [v0, v3, v1], 
-        [v1, v3, v2]  
+    const vector = new THREE.Vector3();
+    const tiers = [
+        { count: 4,  radius: 200,  y: 700 },   // Apex tier
+        { count: 12, radius: 450,  y: 500 },
+        { count: 20, radius: 700,  y: 300 },
+        { count: 28, radius: 950,  y: 100 },
+        { count: 36, radius: 1200, y: -100 },
+        { count: 44, radius: 1450, y: -300 },
+        { count: 56, radius: 1700, y: -500 }   // Base tier
     ];
 
-    for (let i = 0; i < count; i++) {
-        const faceIndex = Math.floor(i / cardsPerFace);
-        const face = faces[faceIndex];
-        const cardIndex = i % cardsPerFace;
+    let currentCard = 0;
 
-        // Triangular row/col mapping
-        const row = Math.floor((-1 + Math.sqrt(1 + 8 * cardIndex)) / 2);
-        const col = cardIndex - (row * (row + 1)) / 2;
-        const totalRows = 9;
+    for (let t = 0; t < tiers.length; t++) {
+        const tier = tiers[t];
+        const itemsInThisTier = Math.min(tier.count, count - currentCard);
 
-        // Calculate barycentric coordinates within the triangular face
-        const rowRatio = (row + 0.5) / (totalRows + 1);
-        const colRatio = row === 0 ? 0.5 : (col + 0.5) / (row + 1);
+        for (let i = 0; i < itemsInThisTier; i++) {
+            // Distribute cards along the 4 straight outer walls of the tier
+            const progress = (i / tier.count) * 4; // 0 to 4 (4 sides)
+            const side = Math.floor(progress);
+            const sideProgress = progress - side; // 0 to 1 along the side
 
-        const w0 = 1 - rowRatio;
-        const w1 = rowRatio * (1 - colRatio);
-        const w2 = rowRatio * colRatio;
+            let x = 0, z = 0;
+            const r = tier.radius;
 
-        const position = new THREE.Vector3()
-            .addScaledVector(face[0], w0)
-            .addScaledVector(face[1], w1)
-            .addScaledVector(face[2], w2);
+            // Map positions along 4 linear perimeter edges
+            if (side === 0) {
+                x = -r + (2 * r * sideProgress);
+                z = r;
+            } else if (side === 1) {
+                x = r;
+                z = r - (2 * r * sideProgress);
+            } else if (side === 2) {
+                x = r - (2 * r * sideProgress);
+                z = -r;
+            } else {
+                x = -r;
+                z = -r + (2 * r * sideProgress);
+            }
 
-        // Compute face normal vector perpendicular to the triangle
-        const edgeA = new THREE.Vector3().subVectors(face[1], face[0]);
-        const edgeB = new THREE.Vector3().subVectors(face[2], face[0]);
-        const normal = new THREE.Vector3().crossVectors(edgeA, edgeB).normalize();
+            const object = new THREE.Object3D();
+            object.position.set(x, tier.y, z);
 
-        // Ensure normal points away from the center of the pyramid
-        const centroid = new THREE.Vector3().add(face[0]).add(face[1]).add(face[2]).divideScalar(3);
-        if (normal.dot(centroid) < 0) {
-            normal.negate();
+            // Orient cards facing outwards with a slight upward tilt matching pyramid slope
+            vector.set(x * 1.5, tier.y - 100, z * 1.5);
+            object.lookAt(vector);
+
+            targets.tetrahedron.push(object);
+            currentCard++;
         }
-
-        const object = new THREE.Object3D();
-        object.position.copy(position);
-
-        // Align card flat against the face and orient it upright along the slope
-        const lookTarget = new THREE.Vector3().addVectors(position, normal);
-        object.lookAt(lookTarget);
-
-        targets.tetrahedron.push(object);
     }
 }
 
