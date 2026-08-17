@@ -210,53 +210,58 @@ function buildGridLayout(count) {
     }
 }
 
+// 5. 3D Pyramid (Tetrahedron) Layout
 function buildTetrahedronLayout(count) {
-    const scale = 1100;
+    const scale = 1200;
+    const vector = new THREE.Vector3();
 
+    // 4 Vertices of a regular tetrahedron centered at origin
     const vertices = [
-        new THREE.Vector3(1, 1, 1).multiplyScalar(scale),
-        new THREE.Vector3(-1, -1, 1).multiplyScalar(scale),
-        new THREE.Vector3(-1, 1, -1).multiplyScalar(scale),
-        new THREE.Vector3(1, -1, -1).multiplyScalar(scale)
+        new THREE.Vector3(0, scale, 0),                                       // Top Apex
+        new THREE.Vector3(-scale, -scale * 0.6, scale * 0.8),                 // Front Left
+        new THREE.Vector3(scale, -scale * 0.6, scale * 0.8),                  // Front Right
+        new THREE.Vector3(0, -scale * 0.6, -scale * 1.2)                      // Back Center
     ];
 
+    // 4 Triangular Faces
     const faces = [
-        [vertices[0], vertices[1], vertices[2]],
-        [vertices[0], vertices[2], vertices[3]],
-        [vertices[0], vertices[3], vertices[1]],
-        [vertices[1], vertices[3], vertices[2]]
+        [vertices[0], vertices[1], vertices[2]], // Front Face
+        [vertices[0], vertices[2], vertices[3]], // Right Face
+        [vertices[0], vertices[3], vertices[1]], // Left Face
+        [vertices[1], vertices[3], vertices[2]]  // Base / Bottom
     ];
 
-    const itemsPerFace = Math.ceil(count / 4);
+    const cardsPerFace = Math.ceil(count / 4); // 50 cards per face
 
     for (let i = 0; i < count; i++) {
-        const faceIndex = Math.floor(i / itemsPerFace);
-        const indexOnFace = i % itemsPerFace;
-        const currentFace = faces[faceIndex];
+        const faceIndex = Math.floor(i / cardsPerFace);
+        const face = faces[faceIndex];
+        const cardIndex = i % cardsPerFace;
 
-        const row = Math.floor((-1 + Math.sqrt(1 + 8 * indexOnFace)) / 2);
-        const col = indexOnFace - (row * (row + 1)) / 2;
+        // Triangular grid distribution (10 rows: 1, 2, 3... 10 cards)
+        const row = Math.floor((-1 + Math.sqrt(1 + 8 * cardIndex)) / 2);
+        const col = cardIndex - (row * (row + 1)) / 2;
+        const totalRows = 9;
 
-        const maxRows = 9;
-        const u = maxRows === 0 ? 0 : row / maxRows;
-        const v = row === 0 ? 0 : col / (maxRows + 1);
-        const w = Math.max(0, 1 - u - v);
+        // Normalized Barycentric coordinates ensuring points stay inside the triangle
+        const r = totalRows > 0 ? row / totalRows : 0;
+        const c = row > 0 ? col / row : 0;
+
+        const w0 = 1 - r;            // Weight for apex
+        const w1 = r * (1 - c);       // Weight for corner 1
+        const w2 = r * c;             // Weight for corner 2
 
         const position = new THREE.Vector3()
-            .addScaledVector(currentFace[0], u)
-            .addScaledVector(currentFace[1], v)
-            .addScaledVector(currentFace[2], w);
+            .addScaledVector(face[0], w0)
+            .addScaledVector(face[1], w1)
+            .addScaledVector(face[2], w2);
 
-        const edge1 = new THREE.Vector3().subVectors(currentFace[1], currentFace[0]);
-        const edge2 = new THREE.Vector3().subVectors(currentFace[2], currentFace[0]);
+        // Calculate face normal vector pointing outwards
+        const edge1 = new THREE.Vector3().subVectors(face[1], face[0]);
+        const edge2 = new THREE.Vector3().subVectors(face[2], face[0]);
         const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
 
-        const centroid = new THREE.Vector3()
-            .add(currentFace[0])
-            .add(currentFace[1])
-            .add(currentFace[2])
-            .divideScalar(3);
-
+        const centroid = new THREE.Vector3().add(face[0]).add(face[1]).add(face[2]).divideScalar(3);
         if (normal.dot(centroid) < 0) {
             normal.negate();
         }
@@ -264,8 +269,9 @@ function buildTetrahedronLayout(count) {
         const object = new THREE.Object3D();
         object.position.copy(position);
 
-        const lookTarget = new THREE.Vector3().addVectors(position, normal);
-        object.lookAt(lookTarget);
+        // Orient card outwards facing the camera
+        vector.addVectors(position, normal);
+        object.lookAt(vector);
 
         targets.tetrahedron.push(object);
     }
