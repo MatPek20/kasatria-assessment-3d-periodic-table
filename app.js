@@ -1,12 +1,9 @@
 /**
  * 3D Periodic Table Data Visualization
  * Primary Developer & Editor: AHMAD AMIRUL FAIZ BIN NAZRI
- * 
- * Tech Stack: Three.js (CSS3DRenderer), Tween.js, PapaParse, Google Identity Services
  */
 
-// Published Google Sheet CSV URL (Direct Endpoint) before this i got error so i using direct endpoint
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/1SpgizARxdeoAL3veuniJwGDodgLrLmqcQcTRp-I6uHU/gviz/tq?tqx=out:csv';
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/1SpgizARxdeoAL3veuniJwGDodgLrLmqcQcTRp-I6uHU/export?format=csv';
 const CLIENT_ID = '881789713644-42g9l58hv737vlupjqj15bf4e3u190tk.apps.googleusercontent.com';
 
 let camera, scene, renderer, controls;
@@ -14,7 +11,6 @@ let tokenClient;
 const objects = [];
 const targets = { table: [], sphere: [], helix: [], grid: [], tetrahedron: [] };
 
-// Initialize Google OAuth Token Client once page loads
 window.onload = function () {
     if (window.google && google.accounts && google.accounts.oauth2) {
         tokenClient = google.accounts.oauth2.initTokenClient({
@@ -22,35 +18,41 @@ window.onload = function () {
             scope: 'https://www.googleapis.com/auth/userinfo.profile',
             callback: (tokenResponse) => {
                 if (tokenResponse && tokenResponse.access_token) {
-                    console.log("Logged in successfully via OAuth Popup!");
-                    document.getElementById('login-screen').style.display = 'none';
+                    console.log("OAuth Success. Loading data...");
+                    const loginScreen = document.getElementById('login-screen');
+                    if (loginScreen) loginScreen.style.display = 'none';
                     loadDataAndInit();
                 }
             },
         });
     } else {
-        console.warn("Google Identity Services SDK not loaded.");
+        console.warn("Google Identity Services SDK initializing...");
     }
 };
 
-// Function called by the Sign In button using gmail acc
 function triggerGoogleLogin() {
     if (tokenClient) {
         tokenClient.requestAccessToken();
     } else {
-        alert("Google OAuth client is still initializing. Please try again in a moment.");
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen) loginScreen.style.display = 'none';
+        loadDataAndInit();
     }
 }
 
-// Fetch google sheet data
 function loadDataAndInit() {
     Papa.parse(CSV_URL, {
         download: true,
         header: true,
+        skipEmptyLines: true,
         complete: function (results) {
-            const cleanData = results.data.filter(row => row.Name);
+            const cleanData = results.data.filter(row => {
+                const name = row.Name || row.name || row[' Name '] || row['Name '];
+                return name && name.trim() !== '';
+            });
+
             if (cleanData.length === 0) {
-                alert("Sheet data empty. Check Publish to Web settings.");
+                alert("Sheet data empty. Check Google Sheet permissions.");
                 return;
             }
             init(cleanData);
@@ -63,7 +65,6 @@ function loadDataAndInit() {
     });
 }
 
-// setup Three,js #D Environment nad generate DOM elements for each person
 function init(data) {
     camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
     camera.position.z = 3000;
@@ -72,26 +73,27 @@ function init(data) {
 
     for (let i = 0; i < data.length; i++) {
         const item = data[i];
-        const rawWorth = item[' Net Worth '] || item['Net Worth'] || '0';
-        const netWorthNum = parseFloat(rawWorth.replace(/[\$,]/g, ''));
+        const name = item.Name || item.name || item[' Name '] || 'Unknown';
+        const photo = item.Photo || item.photo || item[' Photo '] || 'https://via.placeholder.com/60';
+        const rawWorth = item[' Net Worth '] || item['Net Worth'] || item.NetWorth || item.worth || '$0';
+        const netWorthNum = parseFloat(String(rawWorth).replace(/[\$,]/g, '')) || 0;
 
         const element = document.createElement('div');
         element.className = 'element';
 
         if (netWorthNum < 100000) {
-            element.style.backgroundColor = 'rgba(239, 48, 34, 0.75)';   // Red < $100K
+            element.style.backgroundColor = 'rgba(239, 48, 34, 0.75)';
         } else if (netWorthNum <= 200000) {
-            element.style.backgroundColor = 'rgba(255, 152, 0, 0.75)';  // Orange $100k-$200k
+            element.style.backgroundColor = 'rgba(255, 152, 0, 0.75)';
         } else {
-            element.style.backgroundColor = 'rgba(46, 125, 50, 0.75)';   // Green > $200K
+            element.style.backgroundColor = 'rgba(46, 125, 50, 0.75)';
         }
 
-        // card HTML structure
         element.innerHTML = `
-        <div class="number">#${i + 1}</div>
-        <div class="photo"><img src="${item.Photo}" alt="profile" /></div>
-        <div class="name">${item.Name}</div>
-        <div class="net-worth">${rawWorth}</div>
+            <div class="number">#${i + 1}</div>
+            <div class="photo"><img src="${photo}" alt="profile" /></div>
+            <div class="name">${name}</div>
+            <div class="net-worth">${rawWorth}</div>
         `;
 
         const object = new THREE.CSS3DObject(element);
@@ -110,7 +112,10 @@ function init(data) {
 
     renderer = new THREE.CSS3DRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    document.getElementById('container').appendChild(renderer.domElement);
+
+    const container = document.getElementById('container');
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
 
     controls = new THREE.TrackballControls(camera, renderer.domElement);
     controls.minDistance = 500;
@@ -118,17 +123,22 @@ function init(data) {
 
     transform(targets.table, 2000);
 
-    // layout switcher button
-    document.getElementById('table').addEventListener('click', () => transform(targets.table, 2000));
-    document.getElementById('sphere').addEventListener('click', () => transform(targets.sphere, 2000));
-    document.getElementById('helix').addEventListener('click', () => transform(targets.helix, 2000));
-    document.getElementById('grid').addEventListener('click', () => transform(targets.grid, 2000));
-    document.getElementById('tetrahedron').addEventListener('click', () => transform(targets.tetrahedron, 2000));
+    const safeBind = (id, target) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.onclick = () => transform(target, 2000);
+        }
+    };
+
+    safeBind('table', targets.table);
+    safeBind('sphere', targets.sphere);
+    safeBind('helix', targets.helix);
+    safeBind('grid', targets.grid);
+    safeBind('tetrahedron', targets.tetrahedron);
 
     window.addEventListener('resize', onWindowResize);
 }
 
-// Standard Periodic Table Grid
 function buildTableLayout(count) {
     const COLS = 20;
     for (let i = 0; i < count; i++) {
@@ -144,7 +154,6 @@ function buildTableLayout(count) {
     }
 }
 
-// 3D Fibonacci Sphere Arrangement
 function buildSphereLayout(count) {
     const vector = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
@@ -161,7 +170,6 @@ function buildSphereLayout(count) {
     }
 }
 
-// DNA Double Helix Arrangement
 function buildDoubleHelixLayout(count) {
     const vector = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
@@ -182,7 +190,6 @@ function buildDoubleHelixLayout(count) {
     }
 }
 
-// 3D Cube Grid
 function buildGridLayout(count) {
     const X_SIZE = 5;
     const Y_SIZE = 4;
@@ -203,7 +210,6 @@ function buildGridLayout(count) {
     }
 }
 
-// 3D Pyramid Arrangement
 function buildTetrahedronLayout(count) {
     const scale = 1100;
 
@@ -243,8 +249,7 @@ function buildTetrahedronLayout(count) {
 
         const edge1 = new THREE.Vector3().subVectors(currentFace[1], currentFace[0]);
         const edge2 = new THREE.Vector3().subVectors(currentFace[2], currentFace[0]);
-        const normal = new THREE.Vector3().crossVectors(edge1, edge2);
-        normal.normalize();
+        const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
 
         const centroid = new THREE.Vector3()
             .add(currentFace[0])
@@ -266,7 +271,6 @@ function buildTetrahedronLayout(count) {
     }
 }
 
-// smooth transition using Tween.js
 function transform(targetArray, duration) {
     TWEEN.removeAll();
 
@@ -294,7 +298,6 @@ function transform(targetArray, duration) {
     }
 }
 
-// Handle window resizing to keep camera aspect ratio updated
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -302,7 +305,6 @@ function onWindowResize() {
     render();
 }
 
-// Animation loop
 function animate() {
     requestAnimationFrame(animate);
     TWEEN.update();
@@ -310,7 +312,6 @@ function animate() {
     render();
 }
 
-// Render call
 function render() {
     renderer.render(scene, camera);
 }
